@@ -5,11 +5,13 @@
 #include <vector>
 #include <unordered_set>
 #include <cmath>       // for std::round
-#include <algorithm>   // for std::sort, std::find_if
+#include <algorithm>   // for std::sort, std::shuffle
+#include <random>      // for std::mt19937, std::random_device
 
 int my_rating = 1640;
-int rating_delta = 0;
-int num_problems_to_print = 10;
+int rating_delta_min = 100;
+int rating_delta_max = 200;
+int num_problems = 1;
 
 class Problem {
 public:
@@ -84,25 +86,44 @@ int main() {
         return a.rating < b.rating;
     });
 
-    // Find first problem with rating >= threshold
-    int threshold = my_rating + rating_delta;
-    auto start_it = std::find_if(problems.begin(), problems.end(), [threshold](const Problem &p) {
-        return p.rating >= threshold;
-    });
-    if (start_it == problems.end()) {
-        std::cout << "No unsolved problems with rating >= " << threshold << "\n";
-        return 0;
+    // Partition into in-range and above-range
+    int min_rating = my_rating + rating_delta_min;
+    int max_rating = my_rating + rating_delta_max;
+    std::vector<Problem> in_range;
+    std::vector<Problem> above_range;
+    for (const auto &p : problems) {
+        if (p.rating >= min_rating && p.rating <= max_rating) {
+            in_range.push_back(p);
+        } else if (p.rating > max_rating) {
+            above_range.push_back(p);
+        }
     }
 
-    // Print next num_problems_to_print
-    int printed = 0;
-    for (auto it = start_it; it != problems.end() && printed < num_problems_to_print; ++it) {
-        const Problem &p = *it;
+    // Randomly shuffle the in-range problems
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::shuffle(in_range.begin(), in_range.end(), gen);
+
+    // Select problems
+    std::vector<Problem> selected;
+    for (size_t i = 0; i < in_range.size() && selected.size() < static_cast<size_t>(num_problems); ++i) {
+        selected.push_back(in_range[i]);
+    }
+    // If not enough, fill from above_range (already sorted by rating)
+    for (size_t i = 0; i < above_range.size() && selected.size() < static_cast<size_t>(num_problems); ++i) {
+        selected.push_back(above_range[i]);
+    }
+
+    // Print selected problems
+    if (selected.empty()) {
+        std::cout << "No unsolved problems found in the specified rating ranges.\n";
+        return 0;
+    }
+    for (const auto &p : selected) {
         std::cout
             << "ID: " << p.id
-            << ", Rating: " << p.rating
+            // << ", Rating: " << p.rating  NOTE: Comment out to not freak myself out
             << ", Title: \"" << p.title << "\"\n";
-        ++printed;
     }
 
     return 0;
