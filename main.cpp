@@ -11,7 +11,7 @@
 int my_rating = 1640;
 int rating_delta_min = 100;
 int rating_delta_max = 200;
-int num_problems = 1;
+int num_problems = 10;
 
 class Problem {
 public:
