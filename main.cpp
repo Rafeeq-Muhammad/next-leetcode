@@ -5,13 +5,15 @@
 #include <vector>
 #include <unordered_set>
 #include <cmath>       // for std::round
+#include <algorithm>   // for std::sort, std::find_if
 
 int my_rating = 1640;
 int rating_delta = 0;
+int num_problems_to_print = 10;
 
 class Problem {
 public:
-    int rating;      // now an int
+    int rating;
     int id;
     std::string title;
 
@@ -33,6 +35,7 @@ int main() {
         std::cerr << "Warning: could not open solved.txt, assuming none solved\n";
     }
 
+    // Read problems
     const std::string filename = "ratings.txt";
     std::ifstream in(filename);
     if (!in.is_open()) {
@@ -48,20 +51,15 @@ int main() {
     }
 
     std::vector<Problem> problems;
-    // Read & parse each data line
+    // Parse each line
     while (std::getline(in, line)) {
         if (line.empty()) continue;
-
         std::vector<std::string> cols;
         std::istringstream ss(line);
         std::string field;
         while (std::getline(ss, field, '\t'))
             cols.push_back(field);
-
-        if (cols.size() < 3) {
-            std::cerr << "Warning: skipping malformed line: " << line << "\n";
-            continue;
-        }
+        if (cols.size() < 3) continue;
 
         double raw_rating = 0;
         int id = 0;
@@ -69,11 +67,8 @@ int main() {
             raw_rating = std::stod(cols[0]);
             id         = std::stoi(cols[1]);
         } catch (...) {
-            std::cerr << "Warning: invalid numbers on line: " << line << "\n";
             continue;
         }
-
-        // round to nearest integer
         int rounded_rating = static_cast<int>(std::round(raw_rating));
         const std::string& title = cols[2];
 
@@ -82,15 +77,32 @@ int main() {
             problems.emplace_back(rounded_rating, id, title);
         }
     }
-
     in.close();
 
-    // Print out unsolved problems
-    for (const auto& p : problems) {
+    // Sort by rating ascending
+    std::sort(problems.begin(), problems.end(), [](const Problem &a, const Problem &b) {
+        return a.rating < b.rating;
+    });
+
+    // Find first problem with rating >= threshold
+    int threshold = my_rating + rating_delta;
+    auto start_it = std::find_if(problems.begin(), problems.end(), [threshold](const Problem &p) {
+        return p.rating >= threshold;
+    });
+    if (start_it == problems.end()) {
+        std::cout << "No unsolved problems with rating >= " << threshold << "\n";
+        return 0;
+    }
+
+    // Print next num_problems_to_print
+    int printed = 0;
+    for (auto it = start_it; it != problems.end() && printed < num_problems_to_print; ++it) {
+        const Problem &p = *it;
         std::cout
-            << "ID: "       << p.id
+            << "ID: " << p.id
             << ", Rating: " << p.rating
-            << ", Title: \""<< p.title << "\"\n";
+            << ", Title: \"" << p.title << "\"\n";
+        ++printed;
     }
 
     return 0;
