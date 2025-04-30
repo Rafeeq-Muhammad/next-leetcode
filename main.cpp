@@ -5,13 +5,19 @@
 #include <vector>
 #include <unordered_set>
 #include <cmath>       // for std::round
-#include <algorithm>   // for std::sort, std::shuffle
+#include <algorithm>   // for std::sort, std::shuffle, std::find_if
 #include <random>      // for std::mt19937, std::random_device
+
+enum OUTPUT_TYPE {
+    RANGE = 0,
+    CLOSEST = 1,
+};
 
 int my_rating = 1640;
 int rating_delta_min = 100;
 int rating_delta_max = 200;
 int num_problems = 10;
+OUTPUT_TYPE output_type = CLOSEST;
 
 class Problem {
 public:
@@ -37,95 +43,82 @@ int main() {
         std::cerr << "Warning: could not open solved.txt, assuming none solved\n";
     }
 
-    // Read problems
-    const std::string filename = "ratings.txt";
-    std::ifstream in(filename);
-    if (!in.is_open()) {
-        std::cerr << "Error: could not open '" << filename << "'\n";
-        return 1;
-    }
-
-    std::string line;
-    // Skip header
-    if (!std::getline(in, line)) {
-        std::cerr << "Error: file is empty\n";
-        return 1;
-    }
-
+    // Read problems from ratings.txt
     std::vector<Problem> problems;
-    // Parse each line
+    std::ifstream in("ratings.txt");
+    if (!in.is_open()) {
+        std::cerr << "Error: could not open 'ratings.txt'\n";
+        return 1;
+    }
+    std::string line;
+    std::getline(in, line); // skip header
     while (std::getline(in, line)) {
         if (line.empty()) continue;
         std::vector<std::string> cols;
         std::istringstream ss(line);
         std::string field;
-        while (std::getline(ss, field, '\t'))
-            cols.push_back(field);
+        while (std::getline(ss, field, '\t')) cols.push_back(field);
         if (cols.size() < 3) continue;
-
-        double raw_rating = 0;
-        int id = 0;
+        double raw_rating;
+        int id;
         try {
             raw_rating = std::stod(cols[0]);
-            id         = std::stoi(cols[1]);
-        } catch (...) {
-            continue;
-        }
+            id = std::stoi(cols[1]);
+        } catch (...) { continue; }
         int rounded_rating = static_cast<int>(std::round(raw_rating));
-        const std::string& title = cols[2];
-
-        // Only include if not solved
-        if (solved.find(id) == solved.end()) {
-            problems.emplace_back(rounded_rating, id, title);
+        if (solved.count(id) == 0) {
+            problems.emplace_back(rounded_rating, id, cols[2]);
         }
     }
     in.close();
 
-    // Sort by rating ascending
-    std::sort(problems.begin(), problems.end(), [](const Problem &a, const Problem &b) {
+    // Sort ascending by rating
+    std::sort(problems.begin(), problems.end(), [](auto &a, auto &b) {
         return a.rating < b.rating;
     });
 
-    // Partition into in-range and above-range
-    int min_rating = my_rating + rating_delta_min;
-    int max_rating = my_rating + rating_delta_max;
-    std::vector<Problem> in_range;
-    std::vector<Problem> above_range;
-    for (const auto &p : problems) {
-        if (p.rating >= min_rating && p.rating <= max_rating) {
-            in_range.push_back(p);
-        } else if (p.rating > max_rating) {
-            above_range.push_back(p);
+    std::vector<Problem> selected;
+
+    if (output_type == RANGE) {
+        // Partition into in-range and above-range
+        int min_rating = my_rating + rating_delta_min;
+        int max_rating = my_rating + rating_delta_max;
+        std::vector<Problem> in_range, above_range;
+        for (auto &p : problems) {
+            if (p.rating >= min_rating && p.rating <= max_rating) in_range.push_back(p);
+            else if (p.rating > max_rating) above_range.push_back(p);
+        }
+        // Shuffle in-range
+        std::mt19937 gen(std::random_device{}());
+        std::shuffle(in_range.begin(), in_range.end(), gen);
+        // Fill selected
+        for (auto &p : in_range) {
+            if (selected.size() >= size_t(num_problems)) break;
+            selected.push_back(p);
+        }
+        for (auto &p : above_range) {
+            if (selected.size() >= size_t(num_problems)) break;
+            selected.push_back(p);
+        }
+    } else {
+        // CLOSEST: take smallest ratings > my_rating
+        for (auto &p : problems) {
+            if (p.rating > my_rating) {
+                selected.push_back(p);
+                if (selected.size() >= size_t(num_problems)) break;
+            }
         }
     }
 
-    // Randomly shuffle the in-range problems
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::shuffle(in_range.begin(), in_range.end(), gen);
-
-    // Select problems
-    std::vector<Problem> selected;
-    for (size_t i = 0; i < in_range.size() && selected.size() < static_cast<size_t>(num_problems); ++i) {
-        selected.push_back(in_range[i]);
-    }
-    // If not enough, fill from above_range (already sorted by rating)
-    for (size_t i = 0; i < above_range.size() && selected.size() < static_cast<size_t>(num_problems); ++i) {
-        selected.push_back(above_range[i]);
-    }
-
-    // Print selected problems
     if (selected.empty()) {
-        std::cout << "No unsolved problems found in the specified rating ranges.\n";
+        std::cout << "No unsolved problems found for the given criteria.\n";
         return 0;
     }
-    for (const auto &p : selected) {
-        std::cout
-            << "ID: " << p.id
-            // << ", Rating: " << p.rating  NOTE: Comment out to not freak myself out
-            << ", Title: \"" << p.title << "\"\n";
+    for (auto &p : selected) {
+        std::cout << "ID: " << p.id
+                  << ", Rating: " << p.rating
+                  << ", Title: \"" << p.title << "\"\n";
     }
-
     return 0;
 }
 
