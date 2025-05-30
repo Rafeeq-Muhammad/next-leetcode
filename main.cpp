@@ -13,11 +13,11 @@ enum OUTPUT_TYPE {
     CLOSEST = 1,
 };
 
-int my_rating = 1640;
-int rating_delta_min = 100;
+int my_rating = 1595;
+int rating_delta_min = 200;
 int rating_delta_max = 200;
 int num_problems = 10;
-OUTPUT_TYPE output_type = CLOSEST;
+OUTPUT_TYPE output_type = RANGE;
 
 class Problem {
 public:
